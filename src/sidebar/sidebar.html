@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>禹链助手</title>
+    <link rel="stylesheet" href="sidebar.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 登录前界面 -->
+        <div id="beforeLogin">
+            <div class="logo-container">
+                <img src="../../assets/icons/logo.png" alt="禹链助手" class="logo">
+                <h1>禹链助手</h1>
+            </div>
+
+            <!-- 登录表单 -->
+            <div class="form-container" id="loginForm">
+                <h2>登录</h2>
+                <form id="login">
+                    <div class="form-group">
+                        <input type="text" id="loginUsername" placeholder="用户名/手机号" required>
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="loginPassword" placeholder="密码" required>
+                    </div>
+                    <button type="submit" class="btn-primary">登录</button>
+                </form>
+                <p class="switch-form">
+                    还没有账号？<a href="#" id="showRegister">立即注册</a>
+                </p>
+            </div>
+
+            <!-- 注册表单 -->
+            <div class="form-container hidden" id="registerForm">
+                <h2>注册</h2>
+                <form id="register">
+                    <div class="form-group">
+                        <input type="text" id="registerUsername" placeholder="用户名" required>
+                    </div>
+                    <div class="form-group">
+                        <input type="tel" id="registerPhone" placeholder="手机号" required>
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="registerPassword" placeholder="密码" required>
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="confirmPassword" placeholder="确认密码" required>
+                    </div>
+                    <button type="submit" class="btn-primary">注册</button>
+                </form>
+                <p class="switch-form">
+                    已有账号？<a href="#" id="showLogin">立即登录</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- 登录后界面 -->
+        <div id="afterLogin" class="hidden">
+            <div class="header">
+                <div class="user-info">
+                    <span id="userNameDisplay"></span>
+                    <button id="logoutBtn" class="btn-text">退出登录</button>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="action-buttons">
+                    <button id="refreshPageBtn" class="btn-primary">刷新页面</button>
+                    <button id="collectShopIdBtn" class="btn-primary">收集店铺ID</button>
+                    <button id="startScrapeBtn" class="btn-primary">开始抓取订单</button>
+                </div>
+                
+                <div class="status-section">
+                    <h3>抓取状态</h3>
+                    <div id="statusMessage" class="status-message">
+                        等待开始...
+                    </div>
+                    <div id="progressBar" class="progress-bar">
+                        <div class="progress"></div>
+                    </div>
+                </div>
+
+                <div class="data-section">
+                    <h3>数据统计</h3>
+                    <div class="stats">
+                        <div class="stat-item">
+                            <label>已抓取订单：</label>
+                            <span id="orderCount">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>成功数：</label>
+                            <span id="successCount">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>失败数：</label>
+                            <span id="failCount">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="sidebar.js"></script>
+</body>
+</html>

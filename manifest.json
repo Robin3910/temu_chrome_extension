@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "禹链助手",
+  "version": "1.0.0",
+  "description": "禹链助手 - 禹链系统插件",
+  "action": {
+    "default_icon": "assets/icons/logo.png"
+  },
+  "side_panel": {
+    "default_path": "src/sidebar/sidebar.html"
+  },
+  "background": {
+    "service_worker": "src/background/background.js"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "identity",
+    "sidePanel",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://seller.kuajingmaihuo.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://seller.kuajingmaihuo.com/*"],
+      "js": ["src/content/contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
