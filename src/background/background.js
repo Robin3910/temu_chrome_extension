@@ -24,18 +24,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             shopName: shopName,
             lastUpdated: new Date().toISOString()
         });
-
-        console.log("获取到店铺信息：", { shopId, shopName });
-        
-        // 通知侧边栏更新显示
-        chrome.runtime.sendMessage({
-            type: 'UPDATE_ENTITY_NAME',
-            data: {
-                shopId: shopId,
-                shopName: shopName
-            }
-        });
     }
 });
 
+// 保存订单数据到本地存储
+async function saveOrders(orders) {
+    try {
+        // 获取现有订单数据
+        const result = await chrome.storage.local.get('orders');
+        let existingOrders = result.orders || [];
+
+        // 更新或添加新订单
+        orders.forEach(newOrder => {
+            const existingIndex = existingOrders.findIndex(order => order.orderId === newOrder.orderId);
+            if (existingIndex >= 0) {
+                existingOrders[existingIndex] = newOrder;
+            } else {
+                existingOrders.push(newOrder);
+            }
+        });
+
+        // 保存更新后的订单数据
+        await chrome.storage.local.set({ 
+            orders: existingOrders,
+            lastUpdated: new Date().toISOString()
+        });
+
+        console.log('订单数据已保存，总数：', existingOrders.length);
+    } catch (error) {
+        console.error('保存订单数据失败：', error);
+    }
+}
+
 // 其他后台逻辑...
+
+// chrome.storage.local.get(['orders', 'lastUpdated'], function(result) {
+//     console.log('保存的订单数据：', result.orders);
+//     console.log('最后更新时间：', result.lastUpdated);
+// });

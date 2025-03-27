@@ -27,6 +27,11 @@
       "matches": ["https://seller.kuajingmaihuo.com/*"],
       "js": ["src/content/contentScript.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.temu.com/*"],
+      "js": ["src/content/contentScript.js"],
+      "type": "module"
     }
   ]
 }
