@@ -244,4 +244,12 @@ button:hover {
     font-size: 14px;
     color: #666;
     margin-top: 5px;
+}
+
+.shop-info {
+    margin-top: 10px;
+    padding: 5px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    line-height: 1.5;
 } 

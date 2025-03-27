@@ -61,43 +61,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 开始抓取按钮
     const startScrapeBtn = document.getElementById('startScrapeBtn');
-    const collectShopIdBtn = document.getElementById('collectShopIdBtn');
-    const refreshPageBtn = document.getElementById('refreshPageBtn');
 
-    // 刷新页面按钮点击事件
-    if (refreshPageBtn) {
-        refreshPageBtn.addEventListener('click', async () => {
-            try {
-                // 获取当前标签页
-                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                
-                if (tab) {
-                    // 刷新当前标签页
-                    await chrome.tabs.reload(tab.id);
-                    
-                    // 更新状态消息
-                    const statusMessage = document.getElementById('statusMessage');
-                    if (statusMessage) {
-                        statusMessage.textContent = '页面刷新中...';
-                    }
-                }
-            } catch (error) {
-                console.error('刷新页面失败:', error);
-                alert('刷新页面失败，请手动刷新');
-            }
-        });
-    }
-
-    // 收集店铺ID按钮点击事件
-    if (collectShopIdBtn) {
-        collectShopIdBtn.addEventListener('click', async () => {
+    // 开始抓取按钮点击事件
+    if (startScrapeBtn) {
+        startScrapeBtn.addEventListener('click', async () => {
             try {
                 // 获取当前标签页
                 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
                 
                 if (tab && tab.url.includes('seller.kuajingmaihuo.com')) {
+                    // 先刷新页面
+                    await chrome.tabs.reload(tab.id);
+                    
+                    // 等待页面加载完成
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    // 然后收集店铺ID
                     try {
-                        // 发送消息到内容脚本并等待响应
                         const response = await chrome.tabs.sendMessage(tab.id, { 
                             type: 'COLLECT_SHOP_ID' 
                         }).catch(error => {
@@ -117,8 +97,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     alert('请先打开跨境买货网站');
                 }
             } catch (error) {
-                console.error('收集店铺ID失败:', error);
-                alert('收集店铺ID失败，请确保在正确的页面上');
+                console.error('操作失败:', error);
+                alert('操作失败，请确保在正确的页面上');
             }
         });
     }
@@ -144,28 +124,40 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('afterLogin').classList.remove('hidden');
         document.getElementById('userNameDisplay').textContent = `欢迎, ${username}`;
         
-        // 获取并显示实体名称
-        chrome.storage.local.get(['entityName'], function(result) {
-            if (result.entityName) {
-                const entityNameElement = document.createElement('div');
-                entityNameElement.className = 'entity-name';
-                entityNameElement.textContent = `店铺名称: ${result.entityName}`;
-                document.querySelector('.user-info').appendChild(entityNameElement);
+        // 获取并显示店铺信息
+        chrome.storage.local.get(['shopId', 'shopName'], function(result) {
+            if (result.shopId || result.shopName) {
+                const shopInfoElement = document.createElement('div');
+                shopInfoElement.className = 'shop-info';
+                
+                let infoText = '';
+                if (result.shopId) {
+                    infoText += `店铺ID: ${result.shopId}`;
+                }
+                if (result.shopName) {
+                    infoText += infoText ? '<br>' : '';
+                    infoText += `店铺名称: ${result.shopName}`;
+                }
+                
+                shopInfoElement.innerHTML = infoText;
+                document.querySelector('.user-info').appendChild(shopInfoElement);
             }
         });
     }
 
-    // 监听实体名称更新
+    // 监听店铺信息更新
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.type === 'UPDATE_ENTITY_NAME') {
-            const existingEntityName = document.querySelector('.entity-name');
-            if (existingEntityName) {
-                existingEntityName.textContent = `店铺名称: ${message.data}`;
+            const existingShopInfo = document.querySelector('.shop-info');
+            const infoText = `店铺ID: ${message.data.shopId}<br>店铺名称: ${message.data.shopName}`;
+            
+            if (existingShopInfo) {
+                existingShopInfo.innerHTML = infoText;
             } else {
-                const entityNameElement = document.createElement('div');
-                entityNameElement.className = 'entity-name';
-                entityNameElement.textContent = `店铺名称: ${message.data}`;
-                document.querySelector('.user-info').appendChild(entityNameElement);
+                const shopInfoElement = document.createElement('div');
+                shopInfoElement.className = 'shop-info';
+                shopInfoElement.innerHTML = infoText;
+                document.querySelector('.user-info').appendChild(shopInfoElement);
             }
         }
     });

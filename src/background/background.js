@@ -14,18 +14,26 @@ chrome.action.onClicked.addListener(async (tab) => {
 // 监听来自内容脚本的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'ENTITY_NAME_FOUND') {
-        // 存储实体名称
+        // 从entityName中提取数字ID
+        const shopId = message.data.entityName.replace(/[^0-9]/g, '');
+        const shopName = message.data.shopName;
+        
+        // 存储店铺信息
         chrome.storage.local.set({
-            entityName: message.data,
+            shopId: shopId,
+            shopName: shopName,
             lastUpdated: new Date().toISOString()
         });
 
-        console.log("获取到实体名称：",message.data);
+        console.log("获取到店铺信息：", { shopId, shopName });
         
         // 通知侧边栏更新显示
         chrome.runtime.sendMessage({
             type: 'UPDATE_ENTITY_NAME',
-            data: message.data
+            data: {
+                shopId: shopId,
+                shopName: shopName
+            }
         });
     }
 });

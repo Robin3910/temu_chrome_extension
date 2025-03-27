@@ -1,42 +1,3 @@
-// 监听页面变化的观察器
-const observer = new MutationObserver(() => {
-    if (window.location.href.includes('order-manage-custom')) {
-        const entityNameElement = document.querySelector('.account-info_entityName__kct3g');
-        if (entityNameElement) {
-            const entityName = entityNameElement.textContent.trim();
-            // 将数据发送到背景脚本
-            chrome.runtime.sendMessage({
-                type: 'ENTITY_NAME_FOUND',
-                data: entityName
-            });
-            
-            // 停止观察（如果不需要继续监听）
-            observer.disconnect();
-        }
-    }
-});
-
-// 开始观察
-observer.observe(document.body, {
-    childList: true,
-    subtree: true
-});
-
-// 页面加载完成后也检查一次
-document.addEventListener('DOMContentLoaded', () => {
-    if (window.location.href.includes('order-manage-custom')) {
-        const entityNameElement = document.querySelector('.account-info_entityName__kct3g');
-        console.log("获取到店铺DIV：",entityNameElement);
-        if (entityNameElement) {
-            const entityName = entityNameElement.textContent.trim();
-            chrome.runtime.sendMessage({
-                type: 'ENTITY_NAME_FOUND',
-                data: entityName
-            });
-        }
-    }
-});
-
 // 监听来自扩展的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'COLLECT_SHOP_ID') {
@@ -64,11 +25,19 @@ function collectShopId() {
             console.log("获取到店铺DIV：",entityNameElement);
             if (entityNameElement) {
                 const entityName = entityNameElement.textContent.trim();
+                
+                // 获取店铺名称
+                const shopNameElement = document.querySelector('span[data-testid="beast-core-icon"] span');
+                const shopName = shopNameElement ? shopNameElement.textContent.trim() : '';
+                
                 chrome.runtime.sendMessage({
                     type: 'ENTITY_NAME_FOUND',
-                    data: entityName
+                    data: {
+                        entityName: entityName,
+                        shopName: shopName
+                    }
                 });
-                console.log('已收集店铺ID:', entityName);
+                console.log('已收集店铺信息:', { entityName, shopName });
             } else {
                 console.log('未找到店铺ID元素');
                 throw new Error('未找到店铺ID元素');
@@ -80,6 +49,29 @@ function collectShopId() {
     }
 }
 
-// 通知背景脚本内容脚本已加载
-chrome.runtime.sendMessage({ type: 'CONTENT_SCRIPT_LOADED' });
+// 添加收集订单ID的功能
+async function collectOrderIds() {
+    try {
+        // 使用更精确的选择器查找"定制品备货建议"的div
+        const customStockDiv = document.querySelector('.index-module__tabWrapper___2-i0y div:first-child');
+        
+        if (!customStockDiv || customStockDiv.textContent.trim() !== '定制品备货建议') {
+            throw new Error('未找到"定制品备货建议"按钮');
+        }
+
+        console.log('找到定制品备货建议按钮:', customStockDiv);
+        customStockDiv.click();
+        
+        // 通知后台脚本已经点击
+        chrome.runtime.sendMessage({
+            type: 'CUSTOM_STOCK_CLICKED',
+            data: { status: 'clicked' }
+        });
+
+    } catch (error) {
+        console.error('收集订单ID失败:', error);
+        throw error;
+    }
+}
+
 
