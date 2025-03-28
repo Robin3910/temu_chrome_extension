@@ -17,14 +17,19 @@
     "tabs",
     "identity",
     "sidePanel",
-    "scripting"
+    "scripting",
+    "webNavigation"
   ],
   "host_permissions": [
-    "https://seller.kuajingmaihuo.com/*"
+    "https://seller.kuajingmaihuo.com/*",
+    "https://*.temu.com/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://seller.kuajingmaihuo.com/*"],
+      "matches": [
+        "https://seller.kuajingmaihuo.com/*",
+        "https://*.temu.com/*"
+      ],
       "js": ["src/content/contentScript.js"],
       "run_at": "document_idle"
     },

@@ -25,6 +25,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             lastUpdated: new Date().toISOString()
         });
     }
+
+    if (message.type === 'SAVE_ORDERS') {
+        saveOrders(message.data);
+    }
+
+    if (message.type === 'SAVE_ORDER_IMAGES') {
+        saveOrderImages(message.data);
+    }
 });
 
 // 保存订单数据到本地存储
@@ -56,9 +64,35 @@ async function saveOrders(orders) {
     }
 }
 
-// 其他后台逻辑...
+// 保存订单图片数据
+async function saveOrderImages(orderImages) {
+    try {
+        // 获取现有订单数据
+        const result = await chrome.storage.local.get('orders');
+        let orders = result.orders || [];
 
-// chrome.storage.local.get(['orders', 'lastUpdated'], function(result) {
-//     console.log('保存的订单数据：', result.orders);
-//     console.log('最后更新时间：', result.lastUpdated);
-// });
+        // 更新订单数据，添加图片信息
+        orders = orders.map(order => {
+            const imageData = orderImages.find(img => img.orderId === order.orderId);
+            if (imageData) {
+                return {
+                    ...order,
+                    customImages: imageData.images,
+                    customText: imageData.customText
+                };
+            }
+            return order;
+        });
+
+        // 保存更新后的订单数据
+        await chrome.storage.local.set({ 
+            orders: orders,
+            lastUpdated: new Date().toISOString()
+        });
+
+        console.log('订单图片数据已保存');
+    } catch (error) {
+        console.error('保存订单图片数据失败：', error);
+    }
+}
+

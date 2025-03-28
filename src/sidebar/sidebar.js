@@ -66,7 +66,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (startScrapeBtn) {
         startScrapeBtn.addEventListener('click', async () => {
             try {
-
                 // 获取当前标签页
                 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
                 
@@ -101,6 +100,49 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // 开始抓取按钮
+    const startScrapeImagesBtn = document.getElementById('startScrapeImagesBtn');
+
+    // 开始抓取按钮点击事件
+    if (startScrapeImagesBtn) {
+        startScrapeImagesBtn.addEventListener('click', async () => {
+            try {
+                // 获取当前标签页
+                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                
+                if (tab && tab.url.includes('https://agentseller.temu.com/main/customize-goods')) {
+                    await chrome.tabs.reload(tab.id);
+                    // 等待页面加载完成
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    // 然后收集店铺信息
+                    try {
+                        const response = await chrome.tabs.sendMessage(tab.id, { 
+                            type: 'COLLECT_ORDER_IMAGES' 
+                        }).catch(error => {
+                            console.error('发送消息失败:', error);
+                            throw new Error('无法连接到页面，请刷新页面后重试');
+                        });
+                        
+                        // 更新状态消息
+                        const statusMessage = document.getElementById('statusMessage');
+                        if (statusMessage) {
+                            statusMessage.textContent = '正在收集定制图片...';
+                        }
+
+                    } catch (error) {
+                        alert(error.message);
+                    }
+                } else {
+                    alert('请先打开TEMU后台【定制内容】页面：https://agentseller.temu.com/main/customize-goods');
+                }
+            } catch (error) {
+                console.error('操作失败:', error);
+                alert('操作失败，请确保在正确的页面上');
+            }
+        });
+    }
+    
 
     // 检查登录状态并显示相应界面
     const checkAuthStatus = async () => {
