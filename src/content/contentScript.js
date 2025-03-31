@@ -327,7 +327,7 @@ function parseOrdersFromTable() {
             sku_td_index: 3,
             price_td_index: 4,
             quantity_td_index: 5,
-            creationTime_td_index: 8
+            creationTime_td_index: 7
         },
         4: {
             orderIdCell_index: 0, // 0代表没有orderIdCell
