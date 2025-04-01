@@ -24,6 +24,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             shopName: shopName,
             lastUpdated: new Date().toISOString()
         });
+
+        // 向sidebar发送更新消息
+        chrome.runtime.sendMessage({
+            type: 'UPDATE_SHOP_INFO',
+            data: {
+                shopId: shopId,
+                shopName: shopName
+            }
+        });
     }
 
     if (message.type === 'SAVE_ORDERS') {
@@ -38,61 +47,94 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // 保存订单数据到本地存储
 async function saveOrders(orders) {
     try {
-        // 获取现有订单数据
-        const result = await chrome.storage.local.get('orders');
-        let existingOrders = result.orders || [];
-
-        // 更新或添加新订单
-        orders.forEach(newOrder => {
-            const existingIndex = existingOrders.findIndex(order => order.orderId === newOrder.orderId);
-            if (existingIndex >= 0) {
-                existingOrders[existingIndex] = newOrder;
-            } else {
-                existingOrders.push(newOrder);
-            }
-        });
-
-        // 保存更新后的订单数据
         await chrome.storage.local.set({ 
-            orders: existingOrders,
+            orders: orders,
             lastUpdated: new Date().toISOString()
         });
 
-        console.log('订单数据已保存，总数：', existingOrders.length);
+        // 向sidebar发送更新消息，包含完整的状态信息
+        chrome.runtime.sendMessage({
+            type: 'UPDATE_SIDEBAR_ORDERS',
+            data: orders,
+            status: {
+                message: '订单列表抓取完成',
+                count: orders.length,
+                success: orders.length,
+                fail: 0,
+                progress: 100  // 完成时进度为100%
+            }
+        });
+
+        console.log('订单数据已保存，总数：', orders.length);
     } catch (error) {
         console.error('保存订单数据失败：', error);
+        chrome.runtime.sendMessage({
+            type: 'UPDATE_STATUS',
+            status: {
+                message: '订单抓取失败：' + error.message,
+                error: true,
+                success: 0,
+                fail: 1,
+                progress: 0
+            }
+        });
     }
 }
 
 // 保存订单图片数据
 async function saveOrderImages(orderImages) {
     try {
-        // 获取现有订单数据
         const result = await chrome.storage.local.get('orders');
         let orders = result.orders || [];
+        let successCount = 0;
+        let failCount = 0;
 
         // 更新订单数据，添加图片信息
         orders = orders.map(order => {
             const imageData = orderImages.find(img => img.orderId === order.orderId);
             if (imageData) {
+                successCount++;
                 return {
                     ...order,
                     customImages: imageData.images,
                     customTexts: imageData.customTexts
                 };
             }
+            failCount++;
             return order;
         });
 
-        // 保存更新后的订单数据
         await chrome.storage.local.set({ 
             orders: orders,
             lastUpdated: new Date().toISOString()
         });
 
-        console.log('订单图片数据已保存');
+        // 向sidebar发送更新消息，包含完整的状态信息
+        chrome.runtime.sendMessage({
+            type: 'UPDATE_SIDEBAR_ORDERS',
+            data: orders,
+            status: {
+                message: '定制图片抓取完成',
+                count: orderImages.length,
+                success: successCount,
+                fail: failCount,
+                progress: 100  // 完成时进度为100%
+            }
+        });
+
+        console.log('订单图片数据已保存: ', orders);
     } catch (error) {
         console.error('保存订单图片数据失败：', error);
+        chrome.runtime.sendMessage({
+            type: 'UPDATE_STATUS',
+            status: {
+                message: '定制图片抓取失败：' + error.message,
+                error: true,
+                success: 0,
+                fail: 1,
+                progress: 0
+            }
+        });
     }
 }
 

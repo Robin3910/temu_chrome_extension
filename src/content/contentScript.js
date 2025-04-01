@@ -71,35 +71,33 @@ async function clickElement(selector, timeout = 5000, description = '') {
 
 
 // 添加收集店铺ID的功能
-function collectShopId() {
+async function collectShopId() {
     // 点击账户信息区域
     const accountInfoDiv = document.querySelector('.account-info_accountInfo__wc0kw');
     if (accountInfoDiv) {
         accountInfoDiv.click();
-        
-        // 等待一小段时间后获取店铺名称（因为可能需要等待UI更新）
-        setTimeout(() => {
-            const entityNameElement = document.querySelector('.account-info_entityName__kct3g');
-            if (entityNameElement) {
-                const entityName = entityNameElement.textContent.trim();
-                
-                // 获取店铺名称
-                const shopNameElement = document.querySelector('span[data-testid="beast-core-icon"] span');
-                const shopName = shopNameElement ? shopNameElement.textContent.trim() : '';
-                
-                chrome.runtime.sendMessage({
-                    type: 'ENTITY_NAME_FOUND',
-                    data: {
-                        entityName: entityName,
-                        shopName: shopName
-                    }
-                });
-                log('已收集店铺信息:', { entityName, shopName });
-            } else {
-                log('未找到店铺ID元素');
-                throw new Error('未找到店铺ID元素');
-            }
-        }, 500); // 500ms 延迟
+
+        await delay(1000);
+        const entityNameElement = document.querySelector('.account-info_entityName__kct3g');
+        if (entityNameElement) {
+            const entityName = entityNameElement.textContent.trim();
+            
+            // 获取店铺名称
+            const shopNameElement = document.querySelector('span[data-testid="beast-core-icon"] span');
+            const shopName = shopNameElement ? shopNameElement.textContent.trim() : '';
+            
+            chrome.runtime.sendMessage({
+                type: 'ENTITY_NAME_FOUND',
+                data: {
+                    entityName: entityName,
+                    shopName: shopName
+                }
+            });
+            log('已收集店铺信息:', { entityName, shopName });
+        } else {
+            log('未找到店铺ID元素');
+            throw new Error('未找到店铺ID元素');
+        }
     } else {
         log('未找到账户信息元素');
         throw new Error('未找到账户信息元素');
@@ -356,7 +354,7 @@ function parseOrdersFromTable() {
     log('获取到表格数据');
 
     let orderIdInfo = null; // 记录当前订单的订单号等信息，可能存在一个订单号对应多个产品
-    let orderId = "";
+    let title = "";
 
     // 根据td元素数量来判断订单信息的位置，key是td元素数量，value是订单信息的位置
     const index_obj = {
@@ -453,8 +451,14 @@ function parseOrdersFromTable() {
             if (orderIdCell) {
                 // 解析订单基本信息
                 const orderInfo = parseOrderInfo(orderIdCell);
+                if (tdElements.length == 11) {
+                    // 识别到第一个tr之后会更新title
+                    const title_cell = tr.querySelector(`td:nth-child(3) > div > div > div:nth-child(3)`);
+                    title = title_cell ? title_cell.textContent.trim() : '';
+                }
                 orderIdInfo = {
                     orderId: orderInfo.orderId,
+                    title: title,
                     creationType: orderInfo.creationType,
                     warehouseGroup: orderInfo.warehouseGroup,
                     status: orderInfo.status,
@@ -521,7 +525,7 @@ function parseOrderInfo(cell) {
     return {
         orderId: orderIdMatch ? orderIdMatch[0] : '',
         shippingDeadline: deadlines.shipping,
-        deliveryDeadline: deadlines.delivery
+        deliveryDeadline: deadlines.delivery,
     };
 }
 
