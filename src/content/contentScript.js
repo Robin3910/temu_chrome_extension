@@ -177,29 +177,70 @@ async function collectOrderImages() {
     // 存储订单图片数据
     const orderImages = [];
 
+    // 获取的订单图片文字数据，key是td元素数量，value是定制区域内容和图片预览的index
+    const index_obj = {
+        // 15的是订单的第一个tr
+        15: {
+            custom_text_index: 11,
+            image_index: 12,
+        },
+        // 4的是后面的tr
+        4: {
+            custom_text_index: 2,
+            image_index: 3,
+        }
+    }
+
     // 遍历表格行
     // 如果tr里面只有4个td，则表示是多个定制区域，要以该订单的第一个tr为准
+    // 第一个td里面有rowspan，rowspan的值就是当前订单的定制区域数量
+    let rowspan = 1;
+    let cur_index = 0;
+    let orderIdText = "";
+    let customSkuText = "";
+    let orderImageData = {
+        orderId: "",
+        customSkuId: "",
+        images: [],
+        customTexts: []
+    };
     const rows = tbody.querySelectorAll('tr');
     for (const row of rows) {
-        // 获取订单ID
-        const orderIdCell = row.querySelector('td:nth-child(4)');
-        const orderIdText = orderIdCell?.querySelector('span')?.textContent;
+        // 检查第一个td是否有rowspan属性
+        // 如果rowspan大于1，则表示当前订单有多个定制区域
+        const firstTd = row.querySelector('td:first-child');
+        const td_length = row.querySelectorAll('td').length;
+        // 获取到当前的index obj
+        const cur_index_obj = index_obj[td_length];
+        if (firstTd) {
+            rowspan = firstTd.getAttribute('rowspan') || 1;
+            rowspan = parseInt(rowspan);
+        }
         
-        // 获取定制SKU号
-        const customSkuCell = row.querySelector('td:nth-child(5)');
-        const customSkuText = customSkuCell?.querySelector('span')?.textContent;
-        
-        if (!orderIdText) continue;
-
-        const orderImageData = {
-            orderId: orderIdText,
-            customSkuId: customSkuText,
-            images: [],
-            customText: ''
-        };
-
+        if (td_length == 15) {
+            // 只有在不是第一个tr时才push之前收集的数据
+            if (orderImageData.orderId) {
+                orderImages.push(orderImageData);
+            }
+            // 识别到是订单的第一个tr，重置所有信息
+            orderImageData = {
+                orderId: "",
+                customSkuId: "",
+                images: [],
+                customTexts: []
+            };
+            // 第一行有订单信息
+            // 获取订单ID
+            const orderIdCell = row.querySelector('td:nth-child(4)');
+            orderIdText = orderIdCell?.querySelector('span')?.textContent;
+            
+            // 获取定制SKU号
+            const customSkuCell = row.querySelector('td:nth-child(5)');
+            customSkuText = customSkuCell?.querySelector('span')?.textContent;
+        }
+      
         // 获取文字定制内容
-        const customTextCell = row.querySelector('td:nth-child(11) > div > div > div');
+        const customTextCell = row.querySelector(`td:nth-child(${cur_index_obj.custom_text_index}) > div > div > div`);
         const styleTag = customTextCell?.querySelector('style');
         if (styleTag) {
             styleTag.remove();
@@ -207,10 +248,10 @@ async function collectOrderImages() {
         const customText = customTextCell?.textContent?.trim() || '';
         
         // 将文字定制内容添加到订单数据中
-        orderImageData.customText = customText;
+        orderImageData.customTexts.push(customText);
 
         // 获取目标图片预览元素
-        const previewDivs = row.querySelectorAll('td:nth-child(12) > div > div > div');
+        const previewDivs = row.querySelectorAll(`td:nth-child(${cur_index_obj.image_index}) > div > div > div`);
         for (const previewDiv of previewDivs) { // 改用 for...of 循环以支持 await
             previewDiv.click();
             // 等待大图元素出现
@@ -230,6 +271,11 @@ async function collectOrderImages() {
         if (orderImageData.images.length > 0) {
             orderImages.push(orderImageData);
         }
+    }
+
+    // 最后一个tr的数据也需要push到orderImages
+    if (orderImageData.orderId) {
+        orderImages.push(orderImageData);
     }
 
     // 发送图片数据到后台存储
