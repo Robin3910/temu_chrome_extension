@@ -73,12 +73,12 @@ async function clickElement(selector, timeout = 5000, description = '') {
 // 添加收集店铺ID的功能
 async function collectShopId() {
     // 点击账户信息区域
-    const accountInfoDiv = document.querySelector('.account-info_accountInfo__wc0kw');
+    const accountInfoDiv = document.querySelector('div[class*="account-info_accountInfo"]');
     if (accountInfoDiv) {
         accountInfoDiv.click();
 
         await delay(1000);
-        const entityNameElement = document.querySelector('.account-info_entityName__kct3g');
+        const entityNameElement = document.querySelector('div[class*="account-info_entityName"]');
         if (entityNameElement) {
             const entityName = entityNameElement.textContent.trim();
             

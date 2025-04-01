@@ -12,7 +12,7 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 // 监听来自内容脚本的消息
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     if (message.type === 'ENTITY_NAME_FOUND') {
         // 从entityName中提取数字ID
         const shopId = message.data.entityName.replace(/[^0-9]/g, '');
@@ -37,10 +37,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.type === 'SAVE_ORDERS') {
         saveOrders(message.data);
+        // 发送数据到服务器
+        await sendOrdersToServer(message.data);
     }
 
     if (message.type === 'SAVE_ORDER_IMAGES') {
         saveOrderImages(message.data);
+        await sendOrdersToServer(message.data);
     }
 });
 
@@ -61,11 +64,11 @@ async function saveOrders(orders) {
                 count: orders.length,
                 success: orders.length,
                 fail: 0,
-                progress: 100  // 完成时进度为100%
+                progress: 100
             }
         });
 
-        console.log('订单数据已保存，总数：', orders.length);
+       console.log('订单数据已保存，总数：', orders.length);
     } catch (error) {
         console.error('保存订单数据失败：', error);
         chrome.runtime.sendMessage({
@@ -78,6 +81,65 @@ async function saveOrders(orders) {
                 progress: 0
             }
         });
+    }
+}
+
+// 发送订单数据到服务器
+async function sendOrdersToServer(orders) {
+    try {
+        // 获取店铺信息
+        const { shopId, shopName } = await chrome.storage.local.get(['shopId', 'shopName']);
+        
+        // 准备发送的数据
+        const requestData = {
+            shopId,
+            shopName,
+            orders: orders
+        };
+        console.log('准备发送的数据:', requestData);
+
+        // TODO: 替换为实际的API地址
+        const API_URL = 'http://127.0.0.1:48080/admin-api/system/temu/save';
+
+        // 发送请求
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                // 添加认证信息
+                'Authorization': 'Bearer fed18ff06f564d68863f2b5ced627579',
+            },
+            body: JSON.stringify(requestData)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log('数据已成功发送到服务器:', result);
+
+        // 更新状态消息
+        chrome.runtime.sendMessage({
+            type: 'UPDATE_STATUS',
+            status: {
+                message: '数据已成功同步到服务器',
+                success: orders.length,
+                fail: 0,
+                progress: 100
+            }
+        });
+
+    } catch (error) {
+        console.error('发送数据到服务器失败:', error);
+        chrome.runtime.sendMessage({
+            type: 'UPDATE_STATUS',
+            status: {
+                message: '同步到服务器失败：' + error.message,
+                error: true
+            }
+        });
+        throw error; // 继续抛出错误以便上层处理
     }
 }
 
