@@ -25,6 +25,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // 收集定制图片
     if (message.type === 'COLLECT_ORDER_IMAGES') {
         try {
+            collectShopId();
             collectOrderImages();
             sendResponse({ success: true });
         } catch (error) {
@@ -172,6 +173,10 @@ async function collectOrderImages() {
         throw new Error('未找到定制内容表格');
     }
 
+    await clickPagination('ul[data-testid="beast-core-pagination"] li:nth-child(2) div', '200');
+
+    await delay(1000);
+
     const tbody = document.querySelector('tbody[data-testid="beast-core-table-middle-tbody"]');
 
     // 存储订单图片数据
@@ -194,8 +199,7 @@ async function collectOrderImages() {
     // 遍历表格行
     // 如果tr里面只有4个td，则表示是多个定制区域，要以该订单的第一个tr为准
     // 第一个td里面有rowspan，rowspan的值就是当前订单的定制区域数量
-    let rowspan = 1;
-    let cur_index = 0;
+
     let orderIdText = "";
     let customSkuText = "";
     let orderImageData = {
@@ -206,17 +210,11 @@ async function collectOrderImages() {
     };
     const rows = tbody.querySelectorAll('tr');
     for (const row of rows) {
-        // 检查第一个td是否有rowspan属性
-        // 如果rowspan大于1，则表示当前订单有多个定制区域
-        const firstTd = row.querySelector('td:first-child');
+        // 如果td_length大于15，则表示这是订单的第一个tr
         const td_length = row.querySelectorAll('td').length;
         // 获取到当前的index obj
         const cur_index_obj = index_obj[td_length];
-        if (firstTd) {
-            rowspan = firstTd.getAttribute('rowspan') || 1;
-            rowspan = parseInt(rowspan);
-        }
-        
+
         if (td_length == 15) {
             // 只有在不是第一个tr时才push之前收集的数据
             if (orderImageData.orderId) {
@@ -236,11 +234,13 @@ async function collectOrderImages() {
             
             // 获取定制SKU号
             const customSkuCell = row.querySelector('td:nth-child(5)');
-            customSkuText = customSkuCell?.querySelector('span')?.textContent;
+            customSkuText = customSkuCell.textContent;
+            orderImageData.customSkuId = customSkuText;
+            orderImageData.orderId = orderIdText;
         }
       
         // 获取文字定制内容
-        const customTextCell = row.querySelector(`td:nth-child(${cur_index_obj.custom_text_index}) > div > div > div`);
+        const customTextCell = row.querySelector(`td:nth-child(${cur_index_obj.custom_text_index}) > div > div > div > div`);
         const styleTag = customTextCell?.querySelector('style');
         if (styleTag) {
             styleTag.remove();
@@ -266,12 +266,10 @@ async function collectOrderImages() {
                 }
             }
         }
-        log('收集到订单图片:', orderImageData);
+        log('收集到订单图片文字信息:', orderImageData);
+        // orderImages.push(orderImageData);
         
-        if (orderImageData.images.length > 0) {
-            orderImages.push(orderImageData);
-        }
-    }
+    }                
 
     // 最后一个tr的数据也需要push到orderImages
     if (orderImageData.orderId) {
@@ -283,6 +281,7 @@ async function collectOrderImages() {
         type: 'SAVE_ORDER_IMAGES',
         data: orderImages
     });
+    log('收集到的订单图片数据：', orderImages);
 
     return orderImages;
 }

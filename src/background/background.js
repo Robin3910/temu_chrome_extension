@@ -78,7 +78,7 @@ async function saveOrderImages(orderImages) {
                 return {
                     ...order,
                     customImages: imageData.images,
-                    customText: imageData.customText
+                    customTexts: imageData.customTexts
                 };
             }
             return order;
