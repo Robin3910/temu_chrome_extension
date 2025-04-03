@@ -34,6 +34,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         return true; // 保持消息通道开启
     }
+
+    if (message.type === 'REMOVE_POPUPS') {
+        removePopups().then(result => {
+            sendResponse({ 
+                success: true, 
+                message: `已关闭 ${result.count} 个弹窗` 
+            });
+        }).catch(error => {
+            sendResponse({ 
+                success: false, 
+                message: '关闭弹窗失败: ' + error.message 
+            });
+        });
+        return true; // 保持消息通道打开以进行异步响应
+    }
 });
 
 // 添加延时函数
@@ -604,4 +619,34 @@ async function lookupAllOrders() {
     // 关闭抽屉弹窗
     await clickElement('body svg', 5000, '关闭抽屉弹窗');
     return orders;
+}
+
+// 批量关闭弹窗函数
+async function removePopups() {
+    let count = 0;
+    let maxAttempts = 20; // 最大尝试次数，防止无限循环
+    
+    async function findAndClickPopup() {
+        const close_svg = await waitForElement('svg[data-testid="beast-core-modal-icon-close"]', 5000);
+        if (close_svg) {
+            close_svg.click();
+            count++;
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // 循环查找和点击弹窗，直到没有弹窗或达到最大尝试次数
+    for (let i = 0; i < maxAttempts; i++) {
+        // 每次点击后等待一小段时间，让DOM更新
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const found = findAndClickPopup();
+        if (!found) {
+            break; // 没有更多弹窗了
+        }
+    }
+    
+    return { count };
 }
