@@ -36,17 +36,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     if (message.type === 'REMOVE_POPUPS') {
-        removePopups().then(result => {
-            sendResponse({ 
-                success: true, 
-                message: `已关闭 ${result.count} 个弹窗` 
-            });
-        }).catch(error => {
-            sendResponse({ 
-                success: false, 
-                message: '关闭弹窗失败: ' + error.message 
-            });
-        });
+        removePopups();
         return true; // 保持消息通道打开以进行异步响应
     }
 });
@@ -370,6 +360,8 @@ function parseOrdersFromTable() {
 
     let orderIdInfo = null; // 记录当前订单的订单号等信息，可能存在一个订单号对应多个产品
     let title = "";
+    let skc = "";
+    let product_img_url = "";
 
     // 根据td元素数量来判断订单信息的位置，key是td元素数量，value是订单信息的位置
     const index_obj = {
@@ -470,10 +462,17 @@ function parseOrdersFromTable() {
                     // 识别到第一个tr之后会更新title
                     const title_cell = tr.querySelector(`td:nth-child(3) > div > div > div:nth-child(3)`);
                     title = title_cell ? title_cell.textContent.trim() : '';
+                    const skc_cell = tr.querySelector(`td:nth-child(3) > div > div > div:nth-child(4)`);
+                    // skc的文本内容："SKC：1234567890"
+                    skc = skc_cell ? skc_cell.textContent.trim().replace('SKC: ', '') : '';
+                    const img_cell = tr.querySelector(`td:nth-child(3) > div > div > img`);
+                    product_img_url = img_cell ? img_cell.src : '';
                 }
                 orderIdInfo = {
                     orderId: orderInfo.orderId,
                     title: title,
+                    skc: skc,
+                    product_img_url: product_img_url,
                     creationType: orderInfo.creationType,
                     warehouseGroup: orderInfo.warehouseGroup,
                     status: orderInfo.status,
@@ -627,13 +626,14 @@ async function removePopups() {
     let maxAttempts = 20; // 最大尝试次数，防止无限循环
     
     async function findAndClickPopup() {
-        const close_svg = await waitForElement('svg[data-testid="beast-core-modal-icon-close"]', 5000);
-        if (close_svg) {
-            close_svg.click();
+        const modalMask = document.querySelector('div[data-testid="beast-core-modal-mask"]');
+        const modal = document.querySelector('div[data-testid="beast-core-modal"]');
+        if (modalMask && modal) {
+            modalMask.style.display = 'none';
+            modal.style.display = 'none';
             count++;
             return true;
         }
-        
         return false;
     }
     

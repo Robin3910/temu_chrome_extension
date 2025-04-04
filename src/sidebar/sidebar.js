@@ -246,34 +246,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
                 
                 if (tab) {
-                    // 更新状态消息
-                    const statusMessage = document.getElementById('statusMessage');
-                    if (statusMessage) {
-                        statusMessage.textContent = '正在关闭弹窗...';
-                    }
+                    // 添加按钮点击反馈效果
+                    removePopupsBtn.classList.add('active');
                     
                     // 向content script发送消息
-                    try {
-                        const response = await chrome.tabs.sendMessage(tab.id, { 
-                            type: 'REMOVE_POPUPS' 
-                        }).catch(error => {
-                            console.error('发送消息失败:', error);
-                            throw new Error('无法连接到页面，请刷新页面后重试');
-                        });
-                        
-                        // 更新状态消息
-                        if (statusMessage) {
-                            statusMessage.textContent = response.message || '弹窗处理完成';
-                        }
-                    } catch (error) {
-                        alert(error.message);
-                    }
-                } else {
-                    alert('请先打开TEMU网站页面');
+                    chrome.tabs.sendMessage(tab.id, { 
+                        type: 'REMOVE_POPUPS' 
+                    }).catch(error => {
+                        console.error('发送消息失败:', error);
+                    });
+                    
+                    // 短暂延迟后移除活动状态，提供视觉反馈
+                    setTimeout(() => {
+                        removePopupsBtn.classList.remove('active');
+                    }, 300);
                 }
             } catch (error) {
                 console.error('操作失败:', error);
-                alert('操作失败，请确保在正确的页面上');
             }
         });
     }
@@ -322,7 +311,7 @@ function displayOrders(orders) {
         const orderElement = document.createElement('div');
         orderElement.className = 'order-item';
         
-        // 构建定制图片预览HTML，添加data-full-image属性
+        // 构建定制图片预览HTML
         const imagesHtml = order.customImages ? 
             `<div class="custom-images">
                 <p>定制图片：</p>
@@ -344,13 +333,23 @@ function displayOrders(orders) {
                 </div>
             </div>` : '';
 
+        // 产品图片HTML
+        const productImageHtml = order.product_img_url ? 
+            `<div class="product-image-container">
+                <img src="${order.product_img_url}" alt="产品图片" class="product-image" data-full-image="${order.product_img_url}">
+            </div>` : '';
+
         orderElement.innerHTML = `
             <div class="order-header">
-                <span class="order-id">订单号：${order.orderId}</span>
-                <span class="order-status">${order.status}</span>
+                <div class="order-header-left">
+                    <span class="order-id">订单号：${order.orderId}</span>
+                    <span class="order-status">${order.status}</span>
+                </div>
+                ${productImageHtml}
             </div>
             <div class="order-details">
                 <p class="order-title">商品标题：${order.title || '暂无标题'}</p>
+                <p>SKC：${order.skc || '暂无'}</p>
                 <p>创建时间：${order.creationTime}</p>
                 <p>发货期限：${order.shippingDeadline}</p>
                 <p>送达期限：${order.deliveryDeadline}</p>
@@ -366,7 +365,7 @@ function displayOrders(orders) {
         ordersList.appendChild(orderElement);
 
         // 为新添加的图片绑定点击事件
-        const images = orderElement.querySelectorAll('.custom-image');
+        const images = orderElement.querySelectorAll('.custom-image, .product-image');
         images.forEach(img => {
             img.addEventListener('click', showModal);
         });

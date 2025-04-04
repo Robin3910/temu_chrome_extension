@@ -15,7 +15,12 @@
         .order-header {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             margin-bottom: 10px;
+        }
+        .order-header-left {
+            display: flex;
+            flex-direction: column;
         }
         .order-status {
             color: #ff6b6b;
@@ -113,6 +118,71 @@
             object-fit: contain;
             cursor: zoom-out;
         }
+        .product-image-container {
+            width: 80px;
+            height: 80px;
+            flex-shrink: 0;
+            margin-left: 10px;
+        }
+        
+        .product-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            cursor: zoom-in;
+            transition: all 0.3s ease;
+        }
+        
+        .product-image:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-color: #4CAF50;
+        }
+        
+        #floatingButtonContainer {
+            position: fixed;
+            right: 20px;
+            top: 20px;
+            z-index: 100;
+        }
+        
+        .floating-button {
+            width: auto;
+            min-width: 50px;
+            height: 40px;
+            padding: 0 15px;
+            border-radius: 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: bold;
+            outline: none;
+        }
+        
+        .floating-button:hover {
+            transform: scale(1.1);
+            background-color: #45a049;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .floating-button span {
+            display: block;
+            line-height: 1;
+        }
+        
+        .floating-button.active {
+            background-color: #367c39;
+            transform: scale(0.95);
+        }
     </style>
 </head>
 <body>
@@ -176,11 +246,8 @@
             
             <div class="main-content">
                 <div class="action-buttons">
-                    <!-- <button id="refreshPageBtn" class="btn-primary">刷新页面</button> -->
-                    <!-- <button id="collectShopIdBtn" class="btn-primary">收集店铺ID</button> -->
                     <button id="startScrapeBtn" class="btn-primary">爬取【待发货列表】订单</button>
                     <button id="startScrapeImagesBtn" class="btn-primary">爬取【定制中心】图片</button>
-                    <!-- <button id="removePopupsBtn" class="btn-primary">一键清除弹窗</button> -->
                 </div>
                 
                 <div class="status-section">
@@ -216,6 +283,11 @@
     <div id="ordersList"></div>
     <div id="imageModal" class="modal">
         <img class="modal-content" id="modalImage">
+    </div>
+    <div id="floatingButtonContainer">
+        <button id="removePopupsBtn" class="floating-button" title="一键清除页面上的所有弹窗">
+            清除弹窗
+        </button>
     </div>
     <script src="sidebar.js"></script>
 </body>
