@@ -91,6 +91,10 @@ async function collectShopId() {
             const shopNameElement = document.querySelector('span[data-testid="beast-core-icon"] span');
             const shopName = shopNameElement ? shopNameElement.textContent.trim() : '';
             
+            // 从entityName中提取数字ID
+            const shopId = entityName.replace(/[^0-9]/g, '');
+            
+            // 发送店铺信息到background
             chrome.runtime.sendMessage({
                 type: 'ENTITY_NAME_FOUND',
                 data: {
@@ -98,7 +102,26 @@ async function collectShopId() {
                     shopName: shopName
                 }
             });
-            log('已收集店铺信息:', { entityName, shopName });
+            
+            log('已收集店铺信息:', { entityName, shopName, shopId });
+            
+            // 获取店铺品类信息和SKU映射
+            try {
+                log('开始获取店铺品类信息和SKU映射...');
+                const response = await chrome.runtime.sendMessage({
+                    type: 'FETCH_CATEGORY_DATA',
+                    shopId: shopId
+                });
+                
+                if (response && response.success) {
+                    log('成功获取店铺品类信息:', response.data);
+                } else {
+                    log('获取店铺品类信息失败:', response?.error || '未知错误');
+                }
+            } catch (error) {
+                log('请求店铺品类信息时出错:', error);
+            }
+            
         } else {
             log('未找到店铺ID元素');
             throw new Error('未找到店铺ID元素');

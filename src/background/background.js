@@ -45,6 +45,16 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
         saveOrderImages(message.data);
         await sendOrdersToServer(message.data);
     }
+
+    if (message.type === 'FETCH_CATEGORY_DATA') {
+        try {
+            const data = await fetchCategoryMapping(message.shopId);
+            sendResponse({ success: true, data: data });
+        } catch (error) {
+            sendResponse({ success: false, error: error.message });
+        }
+        return true; // 保持消息通道开启以进行异步响应
+    }
 });
 
 // 保存订单数据到本地存储
@@ -98,25 +108,9 @@ async function sendOrdersToServer(orders) {
         };
         console.log('准备发送的数据:', requestData);
 
-        // TODO: 替换为实际的API地址
         const API_URL = 'http://127.0.0.1:48080/admin-api/system/temu/save';
-
-        // 发送请求
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                // 添加认证信息
-                'Authorization': 'Bearer fed18ff06f564d68863f2b5ced627579',
-            },
-            body: JSON.stringify(requestData)
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
+        const result = await authenticatedFetch(API_URL, 'POST', requestData);
+        
         console.log('数据已成功发送到服务器:', result);
 
         // 更新状态消息
@@ -139,7 +133,7 @@ async function sendOrdersToServer(orders) {
                 error: true
             }
         });
-        throw error; // 继续抛出错误以便上层处理
+        throw error;
     }
 }
 
@@ -199,4 +193,85 @@ async function saveOrderImages(orderImages) {
         });
     }
 }
+
+// 获取店铺商品类目信息
+async function fetchCategoryMapping(shopId) {
+    try {
+        const API_URL = 'http://127.0.0.1:48080/admin-api/temu/category/page';
+        
+        const data = await authenticatedFetch(API_URL, 'POST', {});
+        
+        // 将数据存储到本地
+        await chrome.storage.local.set({
+            category: data.data,
+            categoryLastUpdated: new Date().toISOString()
+        });
+        
+        console.log('成功获取店铺商品类目:', data.data);
+        return data.data;
+    } catch (error) {
+        console.error('获取店铺商品类目失败:', error);
+        throw error;
+    }
+}
+
+// 获取店铺SKU映射信息
+async function fetchCategorySkuMapping(shopId) {
+    try {
+        const API_URL = 'http://127.0.0.1:48080/admin-api/temu/category-sku/page';
+        
+        const data = await authenticatedFetch(API_URL, 'POST', {
+            shopId: shopId
+        });
+        
+        // 将数据存储到本地
+        await chrome.storage.local.set({ 
+            categorySkuMapping: data.data,
+            categoryLastUpdated: new Date().toISOString()
+        });
+        
+        console.log('成功获取店铺SKU映射:', data.data);
+        return data.data;
+    } catch (error) {
+        console.error('获取店铺SKU映射失败:', error);
+        throw error;
+    }
+}
+
+// 带认证令牌的通用API请求函数
+async function authenticatedFetch(url, method, body) {
+    try {
+        // 获取访问令牌
+        const { accessToken } = await chrome.storage.local.get(['accessToken']);
+        
+        if (!accessToken) {
+            throw new Error('未登录或会话已过期');
+        }
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
+            },
+            body: body ? JSON.stringify(body) : undefined
+        });
+        
+        if (!response.ok) {
+            // 处理特定的错误代码，如401（未授权）
+            if (response.status === 401) {
+                // 清除过期的令牌
+                await chrome.storage.local.remove(['accessToken', 'refreshToken', 'expiresTime', 'isLoggedIn']);
+                throw new Error('登录已过期，请重新登录');
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('API请求失败:', error);
+        throw error;
+    }
+}
+
 

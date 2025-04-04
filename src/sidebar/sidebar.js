@@ -31,21 +31,70 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             const username = document.getElementById('loginUsername').value;
             const password = document.getElementById('loginPassword').value;
+            
+            if (!username || !password) {
+                alert('请输入用户名和密码');
+                return;
+            }
 
             try {
-                // 模拟登录成功
-                console.log('登录信息:', { username, password });
+                const statusElement = loginForm.querySelector('.login-status');
+                if (!statusElement) {
+                    const statusDiv = document.createElement('div');
+                    statusDiv.className = 'login-status';
+                    loginForm.appendChild(statusDiv);
+                }
                 
-                // 保存登录状态和用户信息
-                await chrome.storage.local.set({ 
-                    userToken: 'dummy_token',
-                    userName: username 
+                const loginStatus = loginForm.querySelector('.login-status');
+                loginStatus.textContent = '登录中...';
+                loginStatus.className = 'login-status info';
+
+                // 调用真实登录API
+                const response = await fetch('http://127.0.0.1:48080/admin-api/system/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'tenant-id': '1'
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password,
+                        uuid: "19",
+                        code: "48"
+                    })
                 });
 
-                // 显示登录后的界面
-                showLoggedInUI(username);
+                const result = await response.json();
+                
+                if (result.code === 0 && result.data) {
+                    // 登录成功，保存令牌和用户信息
+                    await chrome.storage.local.set({ 
+                        accessToken: result.data.accessToken,
+                        refreshToken: result.data.refreshToken,
+                        expiresTime: result.data.expiresTime,
+                        userId: result.data.userId,
+                        userName: username,
+                        isLoggedIn: true,
+                        loginTime: new Date().getTime()
+                    });
+
+                    loginStatus.textContent = '登录成功！';
+                    loginStatus.className = 'login-status success';
+                    
+                    // 显示登录后的界面
+                    setTimeout(() => {
+                        showLoggedInUI(username);
+                    }, 1000);
+                } else {
+                    // 登录失败
+                    loginStatus.textContent = result.msg || '登录失败，请检查用户名和密码';
+                    loginStatus.className = 'login-status error';
+                }
             } catch (error) {
-                console.error('登录失败:', error);
+                console.error('登录请求失败:', error);
+                const loginStatus = loginForm.querySelector('.login-status');
+                loginStatus.textContent = '网络错误，请稍后重试';
+                loginStatus.className = 'login-status error';
             }
         });
     }
@@ -54,8 +103,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
-            await chrome.storage.local.remove(['userToken', 'userName']);
-            showLoggedOutUI();
+            try {
+                // 清除所有登录相关信息
+                await chrome.storage.local.remove([
+                    'accessToken', 'refreshToken', 'expiresTime', 
+                    'userId', 'userName', 'isLoggedIn'
+                ]);
+                showLoggedOutUI();
+            } catch (error) {
+                console.error('退出登录失败:', error);
+                alert('退出登录失败，请重试');
+            }
         });
     }
 
@@ -66,6 +124,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (startScrapeBtn) {
         startScrapeBtn.addEventListener('click', async () => {
             try {
+                // 更新状态消息
+                const statusMessage = document.getElementById('statusMessage');
+                if (statusMessage) {
+                    statusMessage.textContent = '准备爬取订单...';
+                }
+
                 // 获取当前标签页
                 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
                 
@@ -73,7 +137,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     await chrome.tabs.reload(tab.id);
                     // 等待页面加载完成
                     await new Promise(resolve => setTimeout(resolve, 2000));
-                    // 然后收集店铺信息
+                    // 然后收集店铺信息和订单
                     try {
                         const response = await chrome.tabs.sendMessage(tab.id, { 
                             type: 'COLLECT_ORDERS' 
@@ -83,7 +147,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         });
                         
                         // 更新状态消息
-                        const statusMessage = document.getElementById('statusMessage');
                         if (statusMessage) {
                             statusMessage.textContent = '正在收集订单...';
                         }
@@ -96,7 +159,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } catch (error) {
                 console.error('操作失败:', error);
-                alert('操作失败，请确保在正确的页面上');
+                alert(error.message || '操作失败，请确保在正确的页面上');
             }
         });
     }
@@ -147,10 +210,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // 检查登录状态并显示相应界面
     const checkAuthStatus = async () => {
         try {
-            const { userToken, userName } = await chrome.storage.local.get(['userToken', 'userName']);
-            if (userToken) {
+            const { accessToken, expiresTime, userName, isLoggedIn } = 
+                await chrome.storage.local.get(['accessToken', 'expiresTime', 'userName', 'isLoggedIn']);
+            
+            // 检查令牌是否存在且未过期
+            const currentTime = new Date().getTime();
+            if (accessToken && expiresTime && currentTime < expiresTime && isLoggedIn) {
                 showLoggedInUI(userName);
             } else {
+                // 令牌过期或不存在，显示登录界面
+                await chrome.storage.local.remove(['accessToken', 'refreshToken', 'expiresTime', 'userId', 'isLoggedIn']);
                 showLoggedOutUI();
             }
         } catch (error) {
@@ -209,6 +278,40 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('afterLogin').classList.add('hidden');
         document.getElementById('loginForm').classList.remove('hidden');
         document.getElementById('registerForm').classList.add('hidden');
+        
+        // 清空订单列表显示
+        const ordersList = document.getElementById('ordersList');
+        if (ordersList) {
+            ordersList.innerHTML = '';
+        }
+        
+        // 重置统计数据
+        const orderCount = document.getElementById('orderCount');
+        const successCount = document.getElementById('successCount');
+        const failCount = document.getElementById('failCount');
+        
+        if (orderCount) orderCount.textContent = '0';
+        if (successCount) successCount.textContent = '0';
+        if (failCount) failCount.textContent = '0';
+        
+        // 重置进度条
+        const progressBar = document.querySelector('.progress');
+        if (progressBar) {
+            progressBar.style.width = '0%';
+        }
+        
+        // 重置状态消息
+        const statusMessage = document.getElementById('statusMessage');
+        if (statusMessage) {
+            statusMessage.textContent = '等待开始...';
+            statusMessage.classList.remove('error');
+        }
+        
+        // 移除店铺信息
+        const shopInfo = document.querySelector('.shop-info');
+        if (shopInfo) {
+            shopInfo.remove();
+        }
     }
 
     // 注册表单提交
@@ -273,26 +376,39 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 监听来自background的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'UPDATE_SHOP_INFO') {
-        updateShopInfo(message.data);
-    }
-    if (message.type === 'UPDATE_SIDEBAR_ORDERS') {
-        displayOrders(message.data);
-        // 更新状态信息
-        if (message.status) {
-            updateStatus(message.status);
+    // 获取登录状态
+    chrome.storage.local.get('isLoggedIn', function(result) {
+        const isLoggedIn = result.isLoggedIn;
+        
+        // 只有登录状态才处理和显示数据
+        if (isLoggedIn) {
+            if (message.type === 'UPDATE_SHOP_INFO') {
+                updateShopInfo(message.data);
+            }
+            if (message.type === 'UPDATE_SIDEBAR_ORDERS') {
+                displayOrders(message.data);
+                // 更新状态信息
+                if (message.status) {
+                    updateStatus(message.status);
+                }
+            }
+            if (message.type === 'UPDATE_STATUS') {
+                updateStatus(message.status);
+            }
         }
-    }
-    if (message.type === 'UPDATE_STATUS') {
-        updateStatus(message.status);
-    }
+    });
 });
 
-// 页面加载时获取并显示已存储的订单
+// 页面加载时获取并显示已存储的订单 - 添加登录检查
 document.addEventListener('DOMContentLoaded', async () => {
-    const result = await chrome.storage.local.get('orders');
-    if (result.orders) {
-        displayOrders(result.orders);
+    const { isLoggedIn } = await chrome.storage.local.get('isLoggedIn');
+    
+    // 只有登录状态才加载和显示订单
+    if (isLoggedIn) {
+        const result = await chrome.storage.local.get('orders');
+        if (result.orders) {
+            displayOrders(result.orders);
+        }
     }
 });
 
