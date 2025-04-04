@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
 
-    // 检查登录状态并显示相应界面
+    // 检查登录状态并显示相应界面 - 支持自动登录
     const checkAuthStatus = async () => {
         try {
             const { accessToken, expiresTime, userName, isLoggedIn } = 
@@ -218,9 +218,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (accessToken && expiresTime && currentTime < expiresTime && isLoggedIn) {
                 showLoggedInUI(userName);
             } else {
-                // 令牌过期或不存在，显示登录界面
-                await chrome.storage.local.remove(['accessToken', 'refreshToken', 'expiresTime', 'userId', 'isLoggedIn']);
-                showLoggedOutUI();
+                // 令牌过期或不存在，尝试自动登录
+                chrome.runtime.sendMessage({ type: 'AUTO_LOGIN' }, (response) => {
+                    if (response && response.success) {
+                        // 自动登录成功，刷新页面
+                        location.reload();
+                    } else {
+                        // 自动登录失败，显示登录界面
+                        showLoggedOutUI();
+                    }
+                });
             }
         } catch (error) {
             console.error('检查登录状态失败:', error);

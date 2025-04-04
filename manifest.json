@@ -18,7 +18,8 @@
     "identity",
     "sidePanel",
     "scripting",
-    "webNavigation"
+    "webNavigation",
+    "notifications"
   ],
   "host_permissions": [
     "https://seller.kuajingmaihuo.com/*",
@@ -27,7 +28,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://seller.kuajingmaihuo.com/*",
+        "https://*.kuajingmaihuo.com/*",
         "https://*.temu.com/*"
       ],
       "js": ["src/content/contentScript.js"],
@@ -37,6 +38,12 @@
       "matches": ["*://*.temu.com/*"],
       "js": ["src/content/contentScript.js"],
       "type": "module"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/icons/*"],
+      "matches": ["https://*.kuajingmaihuo.com/*", "https://*.temu.com/*"]
     }
   ]
 }

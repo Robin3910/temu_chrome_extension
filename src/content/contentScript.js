@@ -673,3 +673,230 @@ async function removePopups() {
     
     return { count };
 }
+
+// 修改圆球菜单，添加同步订单数据功能
+function addFloatingMenu() {
+    // 检查是否已存在悬浮球，避免重复创建
+    if (document.getElementById('yulian-floating-ball')) {
+        return;
+    }
+
+    // 创建样式
+    const style = document.createElement('style');
+    style.textContent = `
+        #yulian-floating-ball {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #000000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        #yulian-floating-ball:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        #yulian-floating-ball.active {
+            background-color: #333333;
+        }
+        
+        #yulian-floating-ball-icon {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #yulian-floating-ball-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        #yulian-floating-menu {
+            position: fixed;
+            left: 80px;
+            bottom: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            padding: 10px 0;
+            z-index: 10000;
+            display: none;
+            min-width: 150px;
+        }
+        
+        #yulian-floating-menu.show {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .yulian-menu-item {
+            padding: 8px 15px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .yulian-menu-item:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .yulian-menu-item-icon {
+            margin-right: 8px;
+            color: #000000;
+            font-size: 16px;
+        }
+        
+        .yulian-menu-item-text {
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .yulian-menu-divider {
+            height: 1px;
+            background-color: #eee;
+            margin: 5px 0;
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 创建悬浮球
+    const floatingBall = document.createElement('div');
+    floatingBall.id = 'yulian-floating-ball';
+    
+    const ballIcon = document.createElement('div');
+    ballIcon.id = 'yulian-floating-ball-icon';
+    
+    // 使用logo图片替代文字
+    const logoImg = document.createElement('img');
+    logoImg.src = chrome.runtime.getURL('assets/icons/logo.png');
+    logoImg.alt = '禹链助手';
+    
+    ballIcon.appendChild(logoImg);
+    floatingBall.appendChild(ballIcon);
+
+    // 创建菜单
+    const menu = document.createElement('div');
+    menu.id = 'yulian-floating-menu';
+    
+    // 修改菜单项，添加同步订单数据
+    const menuItems = [
+        { icon: '↓', text: '同步订单数据', action: 'syncOrders' },
+        { icon: '×', text: '清除弹窗', action: 'removePopups' },
+        { icon: '↻', text: '刷新页面', action: 'refreshPage' },
+        { divider: true },
+        { icon: '⚙', text: '打开设置', action: 'openSettings' }
+    ];
+    
+    menuItems.forEach(item => {
+        if (item.divider) {
+            const divider = document.createElement('div');
+            divider.className = 'yulian-menu-divider';
+            menu.appendChild(divider);
+            return;
+        }
+        
+        const menuItem = document.createElement('div');
+        menuItem.className = 'yulian-menu-item';
+        menuItem.dataset.action = item.action;
+        
+        const itemIcon = document.createElement('span');
+        itemIcon.className = 'yulian-menu-item-icon';
+        itemIcon.textContent = item.icon;
+        
+        const itemText = document.createElement('span');
+        itemText.className = 'yulian-menu-item-text';
+        itemText.textContent = item.text;
+        
+        menuItem.appendChild(itemIcon);
+        menuItem.appendChild(itemText);
+        menu.appendChild(menuItem);
+    });
+
+    // 添加到页面
+    document.body.appendChild(floatingBall);
+    document.body.appendChild(menu);
+
+    // 创建一个变量来跟踪菜单是否应该保持显示
+    let menuShouldShow = false;
+
+    // 鼠标悬停在悬浮球上时显示菜单
+    floatingBall.addEventListener('mouseenter', () => {
+        menuShouldShow = true;
+        menu.classList.add('show');
+        floatingBall.classList.add('active');
+    });
+    
+    // 鼠标进入菜单时设置标志
+    menu.addEventListener('mouseenter', () => {
+        menuShouldShow = true;
+    });
+    
+    // 鼠标离开悬浮球时，检查鼠标是否移到了菜单上
+    floatingBall.addEventListener('mouseleave', () => {
+        setTimeout(() => {
+            if (!menuShouldShow) {
+                menu.classList.remove('show');
+                floatingBall.classList.remove('active');
+            }
+        }, 50); // 短暂延迟，确保mouseenter事件有时间触发
+    });
+    
+    // 鼠标离开菜单时，隐藏菜单
+    menu.addEventListener('mouseleave', () => {
+        menuShouldShow = false;
+        menu.classList.remove('show');
+        floatingBall.classList.remove('active');
+    });
+    
+    // 修改菜单项点击处理，添加同步订单数据的逻辑
+    menu.addEventListener('click', (e) => {
+        const menuItem = e.target.closest('.yulian-menu-item');
+        if (!menuItem) return;
+        
+        const action = menuItem.dataset.action;
+        
+        switch (action) {
+            case 'syncOrders':
+                // 发送消息给background触发订单同步
+                chrome.runtime.sendMessage({ type: 'SYNC_ORDERS' });
+                break;
+            case 'removePopups':
+                removePopups();
+                break;
+            case 'refreshPage':
+                window.location.reload();
+                break;
+            case 'openSettings':
+                chrome.runtime.sendMessage({ type: 'OPEN_SIDEBAR' });
+                break;
+        }
+        
+        // 点击后关闭菜单
+        menuShouldShow = false;
+        menu.classList.remove('show');
+        floatingBall.classList.remove('active');
+    });
+}
+
+// 在页面加载完成后添加悬浮球
+window.addEventListener('load', addFloatingMenu);

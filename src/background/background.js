@@ -1,15 +1,93 @@
 console.log('This is a popup!');
+  
+// 添加自动登录功能
+async function autoLogin() {
+    try {
+        // 检查当前登录状态
+        const { isLoggedIn, accessToken, expiresTime } = 
+            await chrome.storage.local.get(['isLoggedIn', 'accessToken', 'expiresTime']);
+        
+        // 如果已登录且令牌未过期，则不需要重新登录
+        const currentTime = new Date().getTime();
+        if (isLoggedIn && accessToken && expiresTime && currentTime < expiresTime) {
+            console.log('已登录状态，不需要重新登录');
+            return true;
+        }
+        
+        // 执行自动登录
+        console.log('开始自动登录...');
+        
+        // 使用预设的账号密码登录 (这些应该从配置或环境变量中获取)
+        const username = "admin"; // 替换为您的默认账号
+        const password = "admin123"; // 替换为您的默认密码
+        
+        const response = await fetch('http://127.0.0.1:48080/admin-api/system/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'tenant-id': '1'
+            },
+            body: JSON.stringify({
+                username: username,
+                password: password,
+                uuid: "19",
+                code: "48"
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.code === 0 && result.data) {
+            // 登录成功，保存令牌和用户信息
+            await chrome.storage.local.set({ 
+                accessToken: result.data.accessToken,
+                refreshToken: result.data.refreshToken,
+                expiresTime: result.data.expiresTime,
+                userId: result.data.userId,
+                userName: username,
+                isLoggedIn: true,
+                loginTime: new Date().getTime()
+            });
+            
+            console.log('自动登录成功');
+            return true;
+        } else {
+            console.error('自动登录失败:', result.msg);
+            return false;
+        }
+    } catch (error) {
+        console.error('自动登录出错:', error);
+        return false;
+    }
+}
+
+// 在扩展启动时执行自动登录
+chrome.runtime.onStartup.addListener(() => {
+    autoLogin();
+});
+
+// 在安装/更新后执行自动登录
+chrome.runtime.onInstalled.addListener(() => {
+    autoLogin();
+});
 
 // 监听扩展图标点击事件
 chrome.action.onClicked.addListener(async (tab) => {
-  // 打开侧边栏
-  await chrome.sidePanel.open({tabId: tab.id});
-  
-  // 可选：设置侧边栏为默认打开
-  await chrome.sidePanel.setOptions({
-    enabled: true
-  });
+    // await autoLogin();
+    // 打开侧边栏
+    await chrome.sidePanel.open({tabId: tab.id});
+    
+    // 可选：设置侧边栏为默认打开
+    // await chrome.sidePanel.setOptions({
+    //   enabled: true
+    // });
 });
+
+// // 修改扩展图标点击事件处理
+// chrome.action.onClicked.addListener(async (tab) => {
+//   // 尝试自动登录
+//   await autoLogin();
+// });
 
 // 监听来自内容脚本的消息
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
@@ -54,6 +132,48 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
             sendResponse({ success: false, error: error.message });
         }
         return true; // 保持消息通道开启以进行异步响应
+    }
+
+    if (message.type === 'OPEN_SIDEBAR') {
+        try {
+            if (sender.tab) {
+                await chrome.sidePanel.open({ tabId: sender.tab.id });
+                sendResponse({ success: true });
+            }
+        } catch (error) {
+            console.error('打开侧边栏失败:', error);
+            sendResponse({ success: false, error: error.message });
+        }
+        return true;
+    }
+
+    if (message.type === 'SYNC_ORDERS') {
+        try {
+            // 确保已登录
+            const loginSuccess = await autoLogin();
+            if (!loginSuccess) {
+                console.error('同步订单前登录失败');
+                sendResponse({ success: false, error: '登录失败' });
+                return true;
+            }
+            
+            // 向对应标签页发送收集订单的指令
+            if (sender.tab) {
+                try {
+                    await chrome.tabs.sendMessage(sender.tab.id, { 
+                        type: 'COLLECT_ORDERS' 
+                    });
+                    sendResponse({ success: true });
+                } catch (error) {
+                    console.error('发送收集订单消息失败:', error);
+                    sendResponse({ success: false, error: error.message });
+                }
+            }
+        } catch (error) {
+            console.error('同步订单失败:', error);
+            sendResponse({ success: false, error: error.message });
+        }
+        return true;
     }
 });
 
