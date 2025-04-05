@@ -116,12 +116,12 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     if (message.type === 'SAVE_ORDERS') {
         saveOrders(message.data);
         // 发送数据到服务器
-        await sendOrdersToServer(message.data);
+        await sendOrdersToServer();
     }
 
     if (message.type === 'SAVE_ORDER_IMAGES') {
-        saveOrderImages(message.data);
-        await sendOrdersToServer(message.data);
+        await saveOrderImages(message.data);
+        await sendOrdersToServer();
     }
 
     if (message.type === 'FETCH_CATEGORY_DATA') {
@@ -215,10 +215,11 @@ async function saveOrders(orders) {
 }
 
 // 发送订单数据到服务器
-async function sendOrdersToServer(orders) {
+async function sendOrdersToServer() {
     try {
         // 获取店铺信息
         const { shopId, shopName } = await chrome.storage.local.get(['shopId', 'shopName']);
+        const orders = await chrome.storage.local.get('orders');
         
         // 准备发送的数据
         const requestData = {
@@ -228,7 +229,7 @@ async function sendOrdersToServer(orders) {
         };
         console.log('准备发送的数据:', requestData);
 
-        const API_URL = 'http://127.0.0.1:48080/admin-api/system/temu/save';
+        const API_URL = 'http://127.0.0.1:48080/admin-api/temu/order/save';
         const result = await authenticatedFetch(API_URL, 'POST', requestData);
         
         console.log('数据已成功发送到服务器:', result);
@@ -260,58 +261,163 @@ async function sendOrdersToServer(orders) {
 // 保存订单图片数据
 async function saveOrderImages(orderImages) {
     try {
-        const result = await chrome.storage.local.get('orders');
-        let orders = result.orders || [];
         let successCount = 0;
         let failCount = 0;
+        let totalImages = 0;
+        
+        // 获取之前保存的订单数据
+        const result = await chrome.storage.local.get('orders');
+        let orders = result.orders || [];
 
-        // 更新订单数据，添加图片信息
-        orders = orders.map(order => {
-            const imageData = orderImages.find(img => img.orderId === order.orderId);
-            if (imageData) {
-                successCount++;
-                return {
-                    ...order,
-                    customImages: imageData.images,
+        // 处理每个订单的图片
+        for (const imageData of orderImages) {
+            const orderId = imageData.orderId;
+            const customId = imageData.customSkuId;
+            totalImages += imageData.images.length;
+
+            console.log('订单图片数据:', imageData);
+
+            // 查找对应的订单
+            const orderIndex = orders.findIndex(order => customId == order.skus.customSku);
+            if (orderIndex !== -1) {
+                // 上传订单图片到云存储
+                const uploadedImages = await uploadImagesToCloud(imageData.images, orderId, customId);
+                
+                orders[orderIndex] = {
+                    ...orders[orderIndex],
+                    // customImages: uploadedImages.urls,
+                    customImages: uploadedImages.cloudUrls, // 新增: 云存储URL
                     customTexts: imageData.customTexts
                 };
+                
+                successCount += uploadedImages.success;
+                failCount += uploadedImages.fail;
+            } else {
+                console.warn(`未找到对应订单: ${orderId}`);
+                failCount += imageData.images.length;
             }
-            failCount++;
-            return order;
-        });
+        }
 
+        console.log('上传后的订单数据:', orders);
+
+        // 保存更新后的订单数据
         await chrome.storage.local.set({ 
             orders: orders,
             lastUpdated: new Date().toISOString()
         });
 
-        // 向sidebar发送更新消息，包含完整的状态信息
+        // 发送状态更新消息
         chrome.runtime.sendMessage({
             type: 'UPDATE_SIDEBAR_ORDERS',
             data: orders,
             status: {
-                message: '定制图片抓取完成',
-                count: orderImages.length,
+                message: '定制图片上传完成',
+                count: totalImages,
                 success: successCount,
                 fail: failCount,
-                progress: 100  // 完成时进度为100%
+                progress: 100
             }
         });
 
-        console.log('订单图片数据已保存: ', orders);
+        console.log('订单图片数据已保存并上传到云存储: ', orders);
     } catch (error) {
-        console.error('保存订单图片数据失败：', error);
+        console.error('保存和上传订单图片数据失败：', error);
         chrome.runtime.sendMessage({
             type: 'UPDATE_STATUS',
             status: {
-                message: '定制图片抓取失败：' + error.message,
-                error: true,
-                success: 0,
-                fail: 1,
-                progress: 0
+                message: '定制图片上传失败：' + error.message,
+                error: true
             }
         });
     }
+}
+
+// 上传图片到云存储
+async function uploadImagesToCloud(imageUrls, orderId, customId) {
+    const results = {
+        urls: [],     // 原始URL（备用）
+        cloudUrls: [], // 云存储URL
+        success: 0,
+        fail: 0
+    };
+    
+    try {
+        // 获取认证信息
+        const { accessToken } = await chrome.storage.local.get(['accessToken']);
+        if (!accessToken) {
+            throw new Error('未登录或会话已过期');
+        }
+        
+        // 处理每张图片
+        for (const imageUrl of imageUrls) {
+            try {
+                // 先添加原始URL（作为备用）
+                results.urls.push(imageUrl);
+                
+                // 获取图片数据
+                const blob = await fetchImageAsBlob(imageUrl);
+                
+                // 生成唯一文件名
+                const fileName = `temu_${orderId}_${customId}_${Date.now()}_${results.urls.length}.png`;
+                
+                // 准备文件上传
+                const formData = new FormData();
+                formData.append('file', blob, fileName);
+
+                console.log('准备上传的文件:', formData);
+                
+                // 上传到您的云存储API
+                const API_URL = 'http://127.0.0.1:48080/admin-api/temu/oss/upload';
+                
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('OSS接口返回:', data);
+                // 假设API返回格式 {code: 0, data: {url: '云存储URL'}}
+                if (data.code === 0 && data.data) {
+                    results.cloudUrls.push(data.data);
+                    results.success++;
+                    console.log(`图片上传成功: ${data.data}`);
+                } else {
+                    throw new Error('上传响应格式错误');
+                }
+            } catch (error) {
+                console.error(`上传图片失败:`, error);
+                results.cloudUrls.push(''); // 占位
+                results.fail++;
+            }
+        }
+        
+        return results;
+    } catch (error) {
+        console.error('上传过程中发生错误:', error);
+        // 对于剩余未处理的图片，填充空占位符
+        const remaining = imageUrls.length - (results.success + results.fail);
+        for (let i = 0; i < remaining; i++) {
+            results.cloudUrls.push('');
+            results.fail++;
+        }
+        return results;
+    }
+}
+
+// 将图片URL转换为Blob对象
+async function fetchImageAsBlob(url) {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.blob();
 }
 
 // 获取店铺商品类目信息

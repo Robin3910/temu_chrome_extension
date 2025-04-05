@@ -434,14 +434,16 @@ function displayOrders(orders) {
         const orderElement = document.createElement('div');
         orderElement.className = 'order-item';
         
-        // 构建定制图片预览HTML
+        // 构建定制图片预览HTML，优先使用云存储URL
         const imagesHtml = order.customImages ? 
             `<div class="custom-images">
                 <p>定制图片：</p>
                 <div class="images-container">
-                    ${order.customImages.map(img => 
-                        `<img src="${img}" alt="定制图片" class="custom-image" data-full-image="${img}">`
-                    ).join('')}
+                    ${order.customImages.map((img, index) => {
+                        // 优先使用云存储URL
+                        const imageUrl = (order.cloudStorageUrls && order.cloudStorageUrls[index]) || img;
+                        return `<img src="${imageUrl}" alt="定制图片" class="custom-image" data-full-image="${imageUrl}">`;
+                    }).join('')}
                 </div>
             </div>` : '';
 
